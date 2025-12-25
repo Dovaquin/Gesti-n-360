@@ -50,16 +50,19 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Track loading separately for critical entities
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
   
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-  // Sincronización en tiempo real con Firestore usando colecciones en español
   useEffect(() => {
-    // Escuchar Usuarios
+    // Escuchar Usuarios - Prioridad alta para Login
     const unsubUsers = onSnapshot(collection(db, 'usuarios'), (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ ...doc.data() } as User)));
+      setLoadingUsers(false);
     });
 
     // Escuchar Productos
@@ -72,10 +75,10 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
     });
 
-    // Escuchar Transacciones (Sincronización Crítica para Reportes e Inicio)
+    // Escuchar Transacciones
     const unsubTransactions = onSnapshot(query(collection(db, 'transacciones'), orderBy('date', 'desc')), (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-      setLoading(false);
+      setLoadingTransactions(false);
     });
 
     return () => {
@@ -85,8 +88,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       unsubTransactions();
     };
   }, []);
-
-  // --- Operaciones Cloud (Reemplazan LocalStorage) ---
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     await addDoc(collection(db, 'productos'), productData);
@@ -161,7 +162,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     products,
     customers,
     transactions,
-    loading,
+    loading: loadingUsers || loadingTransactions,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -177,7 +178,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     isAuthenticated,
     login,
     logout
-  }), [user, users, products, customers, transactions, loading, isAuthenticated, login, logout]);
+  }), [user, users, products, customers, transactions, loadingUsers, loadingTransactions, isAuthenticated, login, logout]);
 
   return (
     <StoreContext.Provider value={value}>
