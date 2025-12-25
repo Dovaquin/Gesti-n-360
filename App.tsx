@@ -17,6 +17,7 @@ import NewProduct from './pages/NewProduct';
 import ProductDetails from './pages/ProductDetails';
 import UsersList from './pages/UsersList';
 import UserDetails from './pages/UserDetails';
+import Settings from './pages/Settings';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
@@ -47,6 +48,7 @@ const App: React.FC = () => {
             <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
             <Route path="/transactions/:id" element={<ProtectedRoute><TransactionDetails /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* User Management Routes */}
             <Route path="/users" element={<ProtectedRoute><UsersList /></ProtectedRoute>} />

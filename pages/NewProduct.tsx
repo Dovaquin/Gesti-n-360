@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { useStore } from '../context/Store';
 import { useNavigate, Link } from 'react-router-dom';
@@ -27,8 +28,8 @@ const NewProduct: React.FC = () => {
   const handleSubmit = () => {
     if (!name || !price) return;
 
+    // Fixed: Remove 'id' property as it is omitted in the addProduct signature
     addProduct({
-        id: Date.now().toString(),
         name,
         sku: sku || `SKU-${Date.now()}`,
         stock: parseInt(stock) || 0,

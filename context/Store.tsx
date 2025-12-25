@@ -1,33 +1,43 @@
 
 import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback, useEffect } from 'react';
 import { Product, Customer, Transaction, TransactionType, User } from '../types';
+import { db } from '../firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  setDoc,
+  query,
+  orderBy
+} from 'firebase/firestore';
 
 interface StoreContextType {
-  user: User | null; // Currently logged in user
-  users: User[]; // All registered users
+  user: User | null;
+  users: User[];
   products: Product[];
   customers: Customer[];
   transactions: Transaction[];
+  loading: boolean;
   
-  // Data Actions
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   
-  addCustomer: (customer: Customer) => void;
-  updateCustomer: (customer: Customer) => void;
-  deleteCustomer: (id: string) => void;
+  addCustomer: (customer: Omit<Customer, 'id'>) => Promise<void>;
+  updateCustomer: (customer: Customer) => Promise<void>;
+  deleteCustomer: (id: string) => Promise<void>;
   
-  addTransaction: (transaction: Transaction) => void;
-  updateTransaction: (transaction: Transaction) => void;
-  deleteTransaction: (id: string) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
+  updateTransaction: (transaction: Transaction) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
   
-  // User Management Actions
-  addUser: (user: User) => void;
-  updateUser: (user: User) => void;
-  deleteUser: (id: string) => void;
+  addUser: (user: User) => Promise<void>;
+  updateUser: (user: User) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
 
-  // Auth Actions
   isAuthenticated: boolean;
   login: (pin: string) => boolean;
   logout: () => void;
@@ -35,137 +45,101 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-// Initial Mock Data
-const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Taza de Cerámica Artesanal', sku: 'SKU001', stock: 25, price: 1500, imageUrl: 'https://picsum.photos/200/200?random=1' },
-  { id: '2', name: 'Cuaderno de Cuero', sku: 'SKU002', stock: 10, price: 850, imageUrl: 'https://picsum.photos/200/200?random=2' },
-  { id: '3', name: 'Botella de Acero Inoxidable', sku: 'SKU003', stock: 50, price: 2300, imageUrl: 'https://picsum.photos/200/200?random=3' },
-  { id: '4', name: 'Vela Aromática de Vainilla', sku: 'SKU004', stock: 32, price: 950, imageUrl: 'https://picsum.photos/200/200?random=4' }
-];
-
-const INITIAL_CUSTOMERS: Customer[] = [
-  { id: '1', name: 'Alejandro Martínez', debt: 150000, imageUrl: 'https://i.pravatar.cc/150?u=1' },
-  { id: '2', name: 'Sofía Rodríguez', debt: 5400.50, imageUrl: 'https://i.pravatar.cc/150?u=2' },
-  { id: '3', name: 'Valentina Gómez', debt: 25800, imageUrl: 'https://i.pravatar.cc/150?u=3' },
-  { id: '4', name: 'Mateo Fernández', debt: 1250, imageUrl: 'https://i.pravatar.cc/150?u=4' },
-  { id: '5', name: 'Lucas Díaz', debt: 89300, imageUrl: 'https://i.pravatar.cc/150?u=5' }
-];
-
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: 't1', type: TransactionType.SALE, description: 'Venta inicial', amount: 50000, date: new Date(Date.now() - 86400000 * 6).toISOString() },
-  { id: 't2', type: TransactionType.SALE, description: 'Venta grande', amount: 120000, date: new Date(Date.now() - 86400000 * 5).toISOString() },
-  { id: 't3', type: TransactionType.EXPENSE, description: 'Reposición', amount: 30000, date: new Date(Date.now() - 86400000 * 4).toISOString() },
-  { id: 't4', type: TransactionType.SALE, description: 'Venta tarde', amount: 80000, date: new Date(Date.now() - 86400000 * 3).toISOString() },
-  { id: 't5', type: TransactionType.SALE, description: 'Venta mañana', amount: 45000, date: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { id: 't6', type: TransactionType.EXPENSE, description: 'Alquiler', amount: 150000, date: new Date(Date.now() - 86400000 * 1).toISOString() },
-  { id: 't7', type: TransactionType.SALE, description: 'Venta actual', amount: 200000, date: new Date().toISOString() },
-];
-
-const INITIAL_USERS: User[] = [
-  {
-    id: 'admin',
-    name: 'Administrador',
-    avatarUrl: 'https://i.pravatar.cc/150?u=admin',
-    pin: '1234',
-    role: 'admin',
-    permissions: { inventory: true, sales: true, customers: true, reports: true }
-  },
-  {
-    id: 'emp1',
-    name: 'Empleado Demo',
-    avatarUrl: 'https://i.pravatar.cc/150?u=emp1',
-    pin: '0000',
-    role: 'employee',
-    permissions: { inventory: true, sales: true, customers: false, reports: false }
-  }
-];
-
-// Helper to get from local storage
-const getSaved = <T,>(key: string, initial: T): T => {
-  const saved = localStorage.getItem(key);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      console.error("Error parsing saved data", e);
-    }
-  }
-  return initial;
-};
-
 export const StoreProvider = ({ children }: { children?: ReactNode }) => {
-  // State initialization with persistence check
-  const [users, setUsers] = useState<User[]>(() => getSaved('app_users', INITIAL_USERS));
-  const [products, setProducts] = useState<Product[]>(() => getSaved('app_products', INITIAL_PRODUCTS));
-  const [customers, setCustomers] = useState<Customer[]>(() => getSaved('app_customers', INITIAL_CUSTOMERS));
-  const [transactions, setTransactions] = useState<Transaction[]>(() => getSaved('app_transactions', INITIAL_TRANSACTIONS));
+  const [users, setUsers] = useState<User[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  // Auth state (not persisted to force login on refresh)
-  const [user, setUser] = useState<User | null>(null); // Current Logged In User
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-  // Persistence Effects
-  useEffect(() => localStorage.setItem('app_users', JSON.stringify(users)), [users]);
-  useEffect(() => localStorage.setItem('app_products', JSON.stringify(products)), [products]);
-  useEffect(() => localStorage.setItem('app_customers', JSON.stringify(customers)), [customers]);
-  useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
+  // Sincronización en tiempo real con Firestore usando colecciones en español
+  useEffect(() => {
+    // Escuchar Usuarios
+    const unsubUsers = onSnapshot(collection(db, 'usuarios'), (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ ...doc.data() } as User)));
+    });
 
-  // --- Actions ---
+    // Escuchar Productos
+    const unsubProducts = onSnapshot(query(collection(db, 'productos'), orderBy('name')), (snapshot) => {
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+    });
 
-  const addProduct = useCallback((product: Product) => {
-    setProducts(prev => [...prev, product]);
+    // Escuchar Clientes
+    const unsubCustomers = onSnapshot(query(collection(db, 'clientes'), orderBy('name')), (snapshot) => {
+      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
+    });
+
+    // Escuchar Transacciones (Sincronización Crítica para Reportes e Inicio)
+    const unsubTransactions = onSnapshot(query(collection(db, 'transacciones'), orderBy('date', 'desc')), (snapshot) => {
+      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+      setLoading(false);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubProducts();
+      unsubCustomers();
+      unsubTransactions();
+    };
   }, []);
 
-  const updateProduct = useCallback((updatedProduct: Product) => {
-    setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-  }, []);
+  // --- Operaciones Cloud (Reemplazan LocalStorage) ---
 
-  const deleteProduct = useCallback((id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
-  }, []);
+  const addProduct = async (productData: Omit<Product, 'id'>) => {
+    await addDoc(collection(db, 'productos'), productData);
+  };
 
-  const addCustomer = useCallback((customer: Customer) => {
-    setCustomers(prev => [...prev, customer]);
-  }, []);
+  const updateProduct = async (product: Product) => {
+    const { id, ...data } = product;
+    await updateDoc(doc(db, 'productos', id), data as any);
+  };
 
-  const updateCustomer = useCallback((updatedCustomer: Customer) => {
-    setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
-  }, []);
+  const deleteProduct = async (id: string) => {
+    await deleteDoc(doc(db, 'productos', id));
+  };
 
-  const deleteCustomer = useCallback((id: string) => {
-    setCustomers(prev => prev.filter(c => c.id !== id));
-  }, []);
+  const addCustomer = async (customerData: Omit<Customer, 'id'>) => {
+    await addDoc(collection(db, 'clientes'), customerData);
+  };
 
-  const addTransaction = useCallback((transaction: Transaction) => {
-    setTransactions(prev => [...prev, transaction]);
-  }, []);
+  const updateCustomer = async (customer: Customer) => {
+    const { id, ...data } = customer;
+    await updateDoc(doc(db, 'clientes', id), data as any);
+  };
 
-  const updateTransaction = useCallback((updatedTransaction: Transaction) => {
-    setTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t));
-  }, []);
+  const deleteCustomer = async (id: string) => {
+    await deleteDoc(doc(db, 'clientes', id));
+  };
 
-  const deleteTransaction = useCallback((id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
-  }, []);
+  const addTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
+    await addDoc(collection(db, 'transacciones'), transactionData);
+  };
 
-  // User Management
-  const addUser = useCallback((newUser: User) => {
-    setUsers(prev => [...prev, newUser]);
-  }, []);
+  const updateTransaction = async (transaction: Transaction) => {
+    const { id, ...data } = transaction;
+    await updateDoc(doc(db, 'transacciones', id), data as any);
+  };
 
-  const updateUser = useCallback((updatedUser: User) => {
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    // If updating current user, update session too
-    if (user && user.id === updatedUser.id) {
-        setUser(updatedUser);
-    }
-  }, [user]);
+  const deleteTransaction = async (id: string) => {
+    await deleteDoc(doc(db, 'transacciones', id));
+  };
 
-  const deleteUser = useCallback((id: string) => {
-    setUsers(prev => prev.filter(u => u.id !== id));
-  }, []);
+  const addUser = async (userData: User) => {
+    await setDoc(doc(db, 'usuarios', userData.id), userData);
+  };
 
-  // Auth
+  const updateUser = async (updatedUser: User) => {
+    await setDoc(doc(db, 'usuarios', updatedUser.id), updatedUser);
+    if (user && user.id === updatedUser.id) setUser(updatedUser);
+  };
+
+  const deleteUser = async (id: string) => {
+    await deleteDoc(doc(db, 'usuarios', id));
+  };
+
   const login = useCallback((pin: string) => {
     const foundUser = users.find(u => u.pin === pin);
     if (foundUser) {
@@ -187,6 +161,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     products,
     customers,
     transactions,
+    loading,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -202,28 +177,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     isAuthenticated,
     login,
     logout
-  }), [
-    user, 
-    users,
-    products, 
-    customers, 
-    transactions, 
-    isAuthenticated,
-    addProduct,
-    updateProduct,
-    deleteProduct,
-    addCustomer,
-    updateCustomer,
-    deleteCustomer,
-    addTransaction,
-    updateTransaction,
-    deleteTransaction,
-    addUser,
-    updateUser,
-    deleteUser,
-    login,
-    logout
-  ]);
+  }), [user, users, products, customers, transactions, loading, isAuthenticated, login, logout]);
 
   return (
     <StoreContext.Provider value={value}>

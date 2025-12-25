@@ -17,8 +17,8 @@ const NewTransaction: React.FC = () => {
   const handleSubmit = () => {
     if (!description || !amount) return;
 
+    // Fixed: Remove 'id' property as it is omitted in the addTransaction signature
     addTransaction({
-        id: Date.now().toString(),
         type,
         description,
         amount: parseFloat(amount),

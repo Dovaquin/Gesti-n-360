@@ -13,8 +13,8 @@ const NewCustomer: React.FC = () => {
   const handleSubmit = () => {
     if (!name) return;
 
+    // Fixed: Remove 'id' property as it is omitted in the addCustomer signature
     addCustomer({
-        id: Date.now().toString(),
         name,
         debt: parseFloat(debt) || 0,
         imageUrl: `https://i.pravatar.cc/150?u=${Date.now()}` // Random avatar based on timestamp
