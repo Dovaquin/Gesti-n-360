@@ -29,4 +29,10 @@
     "typescript": "^5.2.2",
     "vite": "^5.1.6"
   }
+  {
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
+
 }
