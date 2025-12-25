@@ -90,7 +90,7 @@ const Inventory: React.FC = () => {
       </div>
 
       {/* List */}
-      <div className="flex flex-col gap-3 p-4 pt-2 pb-24">
+      <div className="flex flex-col gap-3 p-4 pt-2 pb-32">
         {processedProducts.map(product => (
             <Link 
               to={`/inventory/${product.id}`}
@@ -127,10 +127,10 @@ const Inventory: React.FC = () => {
         )}
       </div>
 
-      {/* FAB */}
-      <div className="fixed bottom-6 right-6 z-30">
-        <Link to="/inventory/new" className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full bg-primary text-background-dark shadow-lg hover:scale-105 active:scale-95 transition-transform">
-            <span className="material-symbols-outlined text-3xl font-medium">add</span>
+      {/* FAB Ajustado */}
+      <div className="fixed bottom-24 right-6 z-50">
+        <Link to="/inventory/new" className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full bg-primary text-background-dark shadow-2xl hover:scale-110 active:scale-90 transition-all ring-4 ring-background-dark">
+            <span className="material-symbols-outlined text-3xl font-bold">add</span>
         </Link>
       </div>
     </div>

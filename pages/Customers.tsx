@@ -17,12 +17,9 @@ const Customers: React.FC = () => {
     // 2. Sort
     return result.sort((a, b) => {
       if (sortBy === 'debt') {
-        // Sort by Debt Descending (Highest first)
-        // If debt is equal, sort by name
         if (b.debt === a.debt) return a.name.localeCompare(b.name);
         return b.debt - a.debt;
       } else {
-        // Sort by Name Ascending (A-Z)
         return a.name.localeCompare(b.name);
       }
     });
@@ -52,7 +49,6 @@ const Customers: React.FC = () => {
             </div>
          </div>
          
-         {/* Sort Chips */}
          <div className="flex gap-3 px-4 pt-1 overflow-x-auto no-scrollbar">
             <button 
                 onClick={() => setSortBy('name')}
@@ -79,7 +75,7 @@ const Customers: React.FC = () => {
          </div>
       </div>
 
-      <main className="flex-grow px-4 pb-24 pt-4 flex flex-col gap-2">
+      <main className="flex-grow px-4 pb-32 pt-4 flex flex-col gap-2">
         {processedCustomers.map(customer => (
             <Link 
                 to={`/customers/${customer.id}`}
@@ -98,17 +94,12 @@ const Customers: React.FC = () => {
                 </div>
             </Link>
         ))}
-        {processedCustomers.length === 0 && (
-            <div className="flex flex-col items-center justify-center text-center py-10 opacity-60">
-                <span className="material-symbols-outlined text-4xl mb-2">person_off</span>
-                <p>No se encontraron clientes</p>
-            </div>
-        )}
       </main>
 
-      <div className="fixed bottom-6 right-6 z-20">
-        <Link to="/customers/new" className="flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-primary text-background-dark shadow-lg transition-transform hover:scale-105 active:scale-95">
-            <span className="material-symbols-outlined" style={{ fontSize: '32px', fontWeight: 500 }}>add</span>
+      {/* FAB Ajustado */}
+      <div className="fixed bottom-24 right-6 z-50">
+        <Link to="/customers/new" className="flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-primary text-background-dark shadow-2xl transition-all hover:scale-110 active:scale-90 ring-4 ring-background-dark">
+            <span className="material-symbols-outlined" style={{ fontSize: '32px', fontWeight: 600 }}>add</span>
         </Link>
       </div>
     </div>
