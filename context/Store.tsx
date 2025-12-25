@@ -11,7 +11,8 @@ import {
   doc, 
   setDoc,
   query,
-  orderBy
+  orderBy,
+  increment
 } from 'firebase/firestore';
 
 interface StoreContextType {
@@ -51,7 +52,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
-  // Track loading separately for critical entities
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   
@@ -59,23 +59,19 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
-    // Escuchar Usuarios - Prioridad alta para Login
     const unsubUsers = onSnapshot(collection(db, 'usuarios'), (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ ...doc.data() } as User)));
       setLoadingUsers(false);
     });
 
-    // Escuchar Productos
     const unsubProducts = onSnapshot(query(collection(db, 'productos'), orderBy('name')), (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
     });
 
-    // Escuchar Clientes
     const unsubCustomers = onSnapshot(query(collection(db, 'clientes'), orderBy('name')), (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
     });
 
-    // Escuchar Transacciones
     const unsubTransactions = onSnapshot(query(collection(db, 'transacciones'), orderBy('date', 'desc')), (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
       setLoadingTransactions(false);
@@ -116,7 +112,28 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const addTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
+    // 1. Guardar la transacción en sí
     await addDoc(collection(db, 'transacciones'), transactionData);
+
+    // 2. Lógica de automatización: Si es Venta, descontar stock y sumar deuda si aplica
+    if (transactionData.type === TransactionType.SALE) {
+        // Descontar Stock si hay producto vinculado
+        if (transactionData.productId) {
+            const productRef = doc(db, 'productos', transactionData.productId);
+            await updateDoc(productRef, {
+                stock: increment(-1) // Restamos una unidad
+            });
+        }
+        // Aumentar Deuda si hay cliente vinculado
+        if (transactionData.customerId) {
+            const customerRef = doc(db, 'clientes', transactionData.customerId);
+            await updateDoc(customerRef, {
+                debt: increment(transactionData.amount) // Sumamos el monto a su cuenta
+            });
+        }
+    } else if (transactionData.type === TransactionType.EXPENSE) {
+        // Si fuera un gasto que reduce deuda (pago de cliente), se manejaría aquí.
+    }
   };
 
   const updateTransaction = async (transaction: Transaction) => {

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useStore } from '../context/Store';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { TransactionType } from '../types';
 
 const NewTransaction: React.FC = () => {
@@ -13,23 +13,38 @@ const NewTransaction: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]); 
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
-    if (!description || !amount) return;
+  const handleSubmit = async () => {
+    if (!description || !amount || isSaving) return;
 
-    addTransaction({
-        type,
-        description,
-        amount: parseFloat(amount),
-        date: new Date(date).toISOString(),
-        customerId: selectedCustomer || undefined
-    });
+    setIsSaving(true);
+    setError(null);
 
-    navigate('/dashboard');
+    try {
+        await addTransaction({
+            type,
+            description,
+            amount: parseFloat(amount),
+            date: new Date(date).toISOString(),
+            customerId: selectedCustomer || undefined,
+            productId: selectedProductId || undefined
+        });
+
+        // Navegación inmediata al completar
+        navigate('/dashboard');
+    } catch (err) {
+        console.error("Error al guardar:", err);
+        setError("No se pudo conectar con la nube. Verifica tu conexión.");
+        setIsSaving(false);
+    }
   };
 
   const handleProductSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const productId = e.target.value;
+    setSelectedProductId(productId);
     if (!productId) return;
 
     const product = products.find(p => p.id === productId);
@@ -43,7 +58,11 @@ const NewTransaction: React.FC = () => {
     <div className="relative flex min-h-screen w-full flex-col bg-background-dark">
        {/* Top Bar */}
        <div className="sticky top-0 z-30 flex h-16 items-center border-b border-white/10 bg-background-dark/95 backdrop-blur-sm px-4">
-            <button onClick={() => navigate(-1)} className="flex size-10 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10">
+            <button 
+                onClick={() => navigate(-1)} 
+                disabled={isSaving}
+                className="flex size-10 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10"
+            >
                 <span className="material-symbols-outlined text-2xl">close</span>
             </button>
             <h1 className="flex-1 text-center text-lg font-bold text-white">Nuevo Registro</h1>
@@ -51,6 +70,13 @@ const NewTransaction: React.FC = () => {
        </div>
 
        <main className="flex flex-1 flex-col p-4 pb-32">
+         {error && (
+             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 animate-in fade-in slide-in-from-top-2">
+                 <span className="material-symbols-outlined">error</span>
+                 <p className="text-sm font-medium">{error}</p>
+             </div>
+         )}
+
          <div className="flex flex-col gap-y-6">
             <div>
                 <p className="text-sm font-bold uppercase tracking-widest text-white/40 pb-2 ml-1">Tipo de Movimiento</p>
@@ -68,10 +94,14 @@ const NewTransaction: React.FC = () => {
 
             {type === TransactionType.SALE && products.length > 0 && (
                 <label className="flex flex-col animate-in fade-in slide-in-from-top-2">
-                    <p className="text-sm font-bold uppercase tracking-widest text-white/40 pb-2 ml-1">Desde Inventario</p>
+                    <p className="text-sm font-bold uppercase tracking-widest text-white/40 pb-2 ml-1">Desde Inventario (Opcional)</p>
                     <div className="relative">
-                        <select className="flex h-14 w-full appearance-none rounded-xl border border-white/10 bg-surface-dark p-4 pr-10 text-base font-normal text-white focus:ring-2 focus:ring-primary focus:outline-none transition-all" onChange={handleProductSelect} defaultValue="">
-                            <option value="" disabled>-- Seleccionar producto --</option>
+                        <select 
+                            className="flex h-14 w-full appearance-none rounded-xl border border-white/10 bg-surface-dark p-4 pr-10 text-base font-normal text-white focus:ring-2 focus:ring-primary focus:outline-none transition-all" 
+                            onChange={handleProductSelect} 
+                            value={selectedProductId}
+                        >
+                            <option value="">-- Venta rápida --</option>
                             {products.map(p => (
                                 <option key={p.id} value={p.id}>{p.name} (${p.price})</option>
                             ))}
@@ -107,7 +137,7 @@ const NewTransaction: React.FC = () => {
                     <p className="text-sm font-bold uppercase tracking-widest text-white/40 pb-2 ml-1">Asignar a Cliente</p>
                     <div className="relative">
                         <select className="flex h-14 w-full appearance-none rounded-xl border border-white/10 bg-surface-dark p-4 pr-10 text-base text-white focus:ring-2 focus:ring-primary focus:outline-none transition-all" value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)}>
-                            <option value="">Ningún cliente (Venta rápida)</option>
+                            <option value="">Consumidor Final</option>
                             {customers.map(c => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
@@ -119,16 +149,25 @@ const NewTransaction: React.FC = () => {
          </div>
        </main>
 
-       {/* Botón de acción FIJO - Ahora sin barra inferior estorbando */}
+       {/* Botón de acción FIJO */}
        <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-background-dark/95 backdrop-blur-md border-t border-white/5 z-50">
             <div className="max-w-md mx-auto">
                 <button 
                     onClick={handleSubmit}
-                    disabled={!description || !amount}
+                    disabled={!description || !amount || isSaving}
                     className="flex h-14 w-full items-center justify-center rounded-2xl bg-primary text-lg font-bold text-background-dark shadow-[0_8px_20px_rgba(19,236,91,0.2)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:grayscale"
                 >
-                    <span className="material-symbols-outlined mr-2">check_circle</span>
-                    Guardar Registro
+                    {isSaving ? (
+                        <div className="flex items-center gap-2">
+                             <div className="w-5 h-5 border-2 border-background-dark border-t-transparent rounded-full animate-spin"></div>
+                             <span>Guardando...</span>
+                        </div>
+                    ) : (
+                        <>
+                            <span className="material-symbols-outlined mr-2">check_circle</span>
+                            <span>Guardar Registro</span>
+                        </>
+                    )}
                 </button>
             </div>
        </div>

@@ -27,6 +27,7 @@ export interface Transaction {
   amount: number;
   date: string; // ISO String
   customerId?: string;
+  productId?: string; // Nuevo campo para vincular con inventario
 }
 
 export interface UserPermissions {
